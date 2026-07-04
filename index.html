@@ -1,9 +1,113 @@
+<!DOCTYPE html>
 <html>
-    <head>
-        <title>Benvenuto</title>
-    </head>
-    <body>
-        <h1>This is atitle</h1>
-        <p>This is a paragraph</p>
-    </body>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgiabot Mini App demo</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+        }
+        h1 {
+            font-size: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        td {
+            padding: 6px 4px;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #cccccc);
+            font-size: 14px;
+            word-break: break-all;
+        }
+        td:first-child {
+            color: var(--tg-theme-hint-color, #888888);
+            width: 40%;
+        }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 80px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--tg-theme-hint-color, #cccccc);
+            background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 14px;
+            font-family: inherit;
+        }
+        button {
+            margin-top: 12px;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #888888);
+        }
+    </style>
+</head>
+<body>
+    <h1>This page was opened from Telegram</h1>
+    <p>The fields below come from <code>Telegram.WebApp</code>, signed by Telegram - proof this page was launched from a real chat, not just visited directly.</p>
+    <table id="info"></table>
+
+    <h1>Reply to the chat</h1>
+    <textarea id="text" placeholder="Type a reply..."></textarea>
+    <button id="send">Send back to the bot</button>
+    <div id="status"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const user = tg.initDataUnsafe.user || {};
+        const rows = {
+            "User ID": user.id,
+            "First name": user.first_name,
+            "Username": user.username ? "@" + user.username : "(none)",
+            "Language": user.language_code,
+            "Platform": tg.platform,
+            "Color scheme": tg.colorScheme,
+            "WebApp version": tg.version,
+            "Auth date": tg.initDataUnsafe.auth_date
+                ? new Date(tg.initDataUnsafe.auth_date * 1000).toLocaleString()
+                : undefined,
+            "Signed initData (truncated)": tg.initData ? tg.initData.slice(0, 60) + "..." : "(none)",
+        };
+
+        const table = document.getElementById("info");
+        for (const [label, value] of Object.entries(rows)) {
+            const row = table.insertRow();
+            row.insertCell().textContent = label;
+            row.insertCell().textContent = value === undefined || value === null || value === "" ? "(missing)" : value;
+        }
+
+        document.getElementById("send").addEventListener("click", () => {
+            const text = document.getElementById("text").value.trim();
+            const status = document.getElementById("status");
+            if (!text) {
+                status.textContent = "Type something first.";
+                return;
+            }
+            // Sends the text to the bot as a web_app_data update and closes the app.
+            tg.sendData(text);
+        });
+    </script>
+</body>
 </html>
