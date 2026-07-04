@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segna risultato</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+        }
+        h1 {
+            font-size: 20px;
+        }
+        .scores {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .scores label {
+            flex: 1;
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #888888);
+        }
+        input[type="number"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--tg-theme-hint-color, #cccccc);
+            background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 16px;
+        }
+        button {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #888888);
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title"></h1>
+    <div class="scores">
+        <div>
+            <label id="myLabel"></label>
+            <input type="number" id="myScore" min="0" max="99" step="1">
+        </div>
+        <div>
+            <label id="opponentLabel"></label>
+            <input type="number" id="opponentScore" min="0" max="99" step="1">
+        </div>
+    </div>
+    <button id="submit"></button>
+    <div id="status"></div>
+
+    <script>
+        // Same Heroku host as the Telegram webhook - see miniapp/api.py.
+        const API_URL = "https://sdullo-bot.herokuapp.com/api/match/report";
+
+        const LABELS = {
+            en: {
+                titlePrefix: "Match vs ",
+                myLabel: "Your score",
+                opponentLabel: "Opponent's score",
+                submit: "Submit result",
+                sending: "Submitting...",
+                invalid: "Enter both scores.",
+                waiting: "Recorded - waiting for your opponent to confirm.",
+                disagreement: "Your scores don't match your opponent's report. The organizer has been notified.",
+                recorded: "Result confirmed and saved!",
+                failed: "Failed: ",
+                networkError: "Network error: ",
+            },
+            it: {
+                titlePrefix: "Partita contro ",
+                myLabel: "Il tuo punteggio",
+                opponentLabel: "Punteggio avversario",
+                submit: "Invia risultato",
+                sending: "Invio in corso...",
+                invalid: "Inserisci entrambi i punteggi.",
+                waiting: "Registrato - in attesa di conferma dall'avversario.",
+                disagreement: "Il tuo risultato non corrisponde a quello dell'avversario. L'organizzatore è stato avvisato.",
+                recorded: "Risultato confermato e salvato!",
+                failed: "Errore: ",
+                networkError: "Errore di rete: ",
+            },
+        };
+
+        function labelsFor(lang) {
+            return LABELS[lang] || LABELS.en;
+        }
+
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const params = new URLSearchParams(location.search);
+        const tournamentId = params.get("tournament_id");
+        const matchId = params.get("match_id");
+        const opponent = params.get("opponent") || "?";
+
+        const lang = (tg.initDataUnsafe.user || {}).language_code;
+        const t = labelsFor(lang);
+
+        document.getElementById("title").textContent = t.titlePrefix + opponent;
+        document.getElementById("myLabel").textContent = t.myLabel;
+        document.getElementById("opponentLabel").textContent = t.opponentLabel;
+        document.getElementById("submit").textContent = t.submit;
+
+        document.getElementById("submit").addEventListener("click", async () => {
+            const status = document.getElementById("status");
+            const myScore = document.getElementById("myScore").value;
+            const opponentScore = document.getElementById("opponentScore").value;
+            if (myScore === "" || opponentScore === "") {
+                status.textContent = t.invalid;
+                return;
+            }
+            status.textContent = t.sending;
+            try {
+                const resp = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        initData: tg.initData,
+                        tournament_id: tournamentId,
+                        match_id: matchId,
+                        my_score: Number(myScore),
+                        opponent_score: Number(opponentScore),
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) {
+                    status.textContent = t.failed + (data.error || resp.status);
+                    return;
+                }
+                if (data.status === "recorded") {
+                    status.textContent = t.recorded;
+                    setTimeout(() => tg.close(), 1500);
+                } else if (data.status === "disagreement") {
+                    status.textContent = t.disagreement;
+                } else {
+                    status.textContent = t.waiting;
+                }
+            } catch (err) {
+                status.textContent = t.networkError + err;
+            }
+        });
+    </script>
+</body>
+</html>
