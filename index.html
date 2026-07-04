@@ -72,9 +72,19 @@
     <div id="status"></div>
 
     <script>
+        // Fill in after deploying the Cloudflare Worker, e.g.
+        // "https://miniapp-reply.<your-subdomain>.workers.dev"
+        const WORKER_URL = "https://miniapp.dominguezfrojan.workers.dev";
+
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
+
+        // Telegram doesn't tell an inline-button Mini App which chat/message
+        // opened it, so the bot embeds them in the URL itself.
+        const params = new URLSearchParams(location.search);
+        const chatId = params.get("chat_id");
+        const messageId = params.get("message_id");
 
         const user = tg.initDataUnsafe.user || {};
         const rows = {
@@ -98,15 +108,34 @@
             row.insertCell().textContent = value === undefined || value === null || value === "" ? "(missing)" : value;
         }
 
-        document.getElementById("send").addEventListener("click", () => {
+        document.getElementById("send").addEventListener("click", async () => {
             const text = document.getElementById("text").value.trim();
             const status = document.getElementById("status");
             if (!text) {
                 status.textContent = "Type something first.";
                 return;
             }
-            // Sends the text to the bot as a web_app_data update and closes the app.
-            tg.sendData(text);
+            status.textContent = "Sending...";
+            try {
+                const resp = await fetch(WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        initData: tg.initData,
+                        chat_id: chatId,
+                        message_id: messageId,
+                        text,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) {
+                    status.textContent = "Failed: " + (data.error || resp.status);
+                    return;
+                }
+                tg.close();
+            } catch (err) {
+                status.textContent = "Network error: " + err;
+            }
         });
     </script>
 </body>
