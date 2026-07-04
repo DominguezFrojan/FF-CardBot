@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configura torneo</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+        }
+        h1 {
+            font-size: 20px;
+        }
+        label {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #888888);
+        }
+        select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--tg-theme-hint-color, #cccccc);
+            background: var(--tg-theme-secondary-bg-color, #f2f2f2);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 15px;
+        }
+        button {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #888888);
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title"></h1>
+    <label id="typeLabel" for="type"></label>
+    <select id="type"></select>
+    <label id="tiebreakerLabel" for="tiebreaker"></label>
+    <select id="tiebreaker"></select>
+    <button id="submit"></button>
+    <div id="status"></div>
+
+    <script>
+        // Same Heroku host as the Telegram webhook - see miniapp/api.py.
+        const API_URL = "https://sdullo-bot.herokuapp.com/api/tournament/config";
+
+        const LABELS = {
+            en: {
+                title: "Configure tournament",
+                typeLabel: "Tournament type",
+                tiebreakerLabel: "Tiebreaker",
+                submit: "Create tournament",
+                types: {
+                    "swiss": "Swiss",
+                    "single elimination": "Single elimination",
+                    "double elimination": "Double elimination",
+                    "round robin": "Round robin",
+                },
+                tiebreakers: {
+                    "match wins": "Match wins",
+                    "game wins": "Game wins",
+                    "points scored": "Points scored",
+                    "points difference": "Point difference",
+                },
+                sending: "Creating tournament...",
+                failed: "Failed: ",
+                networkError: "Network error: ",
+            },
+            it: {
+                title: "Configura torneo",
+                typeLabel: "Tipo di torneo",
+                tiebreakerLabel: "Spareggio",
+                submit: "Crea torneo",
+                types: {
+                    "swiss": "Svizzera",
+                    "single elimination": "Eliminazione diretta",
+                    "double elimination": "Doppia eliminazione",
+                    "round robin": "Girone all'italiana",
+                },
+                tiebreakers: {
+                    "match wins": "Partite vinte",
+                    "game wins": "Game vinti",
+                    "points scored": "Punti segnati",
+                    "points difference": "Differenza punti",
+                },
+                sending: "Creazione del torneo...",
+                failed: "Errore: ",
+                networkError: "Errore di rete: ",
+            },
+        };
+
+        function labelsFor(lang) {
+            return LABELS[lang] || LABELS.en;
+        }
+
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const params = new URLSearchParams(location.search);
+        const chatId = params.get("chat_id");
+
+        const lang = (tg.initDataUnsafe.user || {}).language_code;
+        const t = labelsFor(lang);
+
+        document.getElementById("title").textContent = t.title;
+        document.getElementById("typeLabel").textContent = t.typeLabel;
+        document.getElementById("tiebreakerLabel").textContent = t.tiebreakerLabel;
+        document.getElementById("submit").textContent = t.submit;
+
+        const typeSelect = document.getElementById("type");
+        for (const [value, label] of Object.entries(t.types)) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            if (value === "swiss") option.selected = true;
+            typeSelect.appendChild(option);
+        }
+
+        const tiebreakerSelect = document.getElementById("tiebreaker");
+        for (const [value, label] of Object.entries(t.tiebreakers)) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            tiebreakerSelect.appendChild(option);
+        }
+
+        document.getElementById("submit").addEventListener("click", async () => {
+            const status = document.getElementById("status");
+            status.textContent = t.sending;
+            try {
+                const resp = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        initData: tg.initData,
+                        chat_id: chatId,
+                        tournament_type: typeSelect.value,
+                        ranked_by: tiebreakerSelect.value,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) {
+                    status.textContent = t.failed + (data.error || resp.status);
+                    return;
+                }
+                tg.close();
+            } catch (err) {
+                status.textContent = t.networkError + err;
+            }
+        });
+    </script>
+</body>
+</html>
